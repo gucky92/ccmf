@@ -1,3 +1,5 @@
+import networkx as nx
+
 from ccmf.circuit import Circuit
 from .node import Node
 from .link import Link
@@ -7,6 +9,28 @@ class GUICircuit(Circuit):
     def __init__(self, gui, **attr):
         self._gui = gui
         super().__init__(**attr)
+
+    def load(self, saved_circuit):
+        transform = {}
+        for key, value in saved_circuit.nodes.items():
+            transform[key] = self.add_node(key, center=value['center'])
+        for key, value in saved_circuit.edges.items():
+            print(value['sign'])
+            self.add_edge(transform[key[0]], transform[key[1]], sign=value['sign'])
+
+    def save(self):
+        circuit = Circuit()
+        for key, value in self.nodes.items():
+            circuit.add_node(key, center=value['node'].center)
+        for key, value in self.edges.items():
+            circuit.add_edge(*key, sign=value['sign'])
+        return circuit
+
+    def delete_tk(self):
+        for i, value in self.nodes.items():
+            value['node'].delete_tk()
+        for i, value in self.edges.items():
+            value['link'].delete_tk()
 
     @property
     def gui(self):
@@ -19,6 +43,7 @@ class GUICircuit(Circuit):
     def add_node(self, node_for_adding, **attr):
         cell_id = self._get_unique_id(node_for_adding)
         super().add_node(cell_id, node=Node(cell_id, self, attr['center'] if 'center' in attr else None))
+        return cell_id
 
     def remove_node(self, n):
         if isinstance(n, Node):
@@ -29,7 +54,10 @@ class GUICircuit(Circuit):
         return super().has_edge(str(u), str(v))
 
     def add_edge(self, u, v, **attr):
-        return super().add_edge(str(u), str(v), link=Link(str(u), str(v), self))
+        sign = attr['sign'] if 'sign' in attr else self.gui.current_sign
+        super().add_edge(str(u), str(v), sign=sign)
+        link = Link(str(u), str(v), self)
+        nx.set_edge_attributes(self, {(str(u), str(v)): link}, 'link')
 
     def remove_edge(self, u, v):
         return super().remove_edge(str(u), str(v))

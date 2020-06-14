@@ -63,8 +63,7 @@ class GUIElement(ABC):
     def _refresh(self):
         pass
 
-    @abstractmethod
-    def _handle_delete(self):
+    def delete_tk(self):
         for object_id in self._object_ids:
             self._canvas.delete(object_id)
 

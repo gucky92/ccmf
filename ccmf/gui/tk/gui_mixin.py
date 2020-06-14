@@ -1,4 +1,7 @@
+import os
+import pickle
 import tkinter as tk
+from tkinter import filedialog
 from tkinter import ttk
 
 from ccmf.circuit import Sign
@@ -14,15 +17,20 @@ class CCMFGUIMixin:
     file_extension = 'circuit'
 
     def __init__(self):
+        self._filename = None
         self._gui_circuit = GUICircuit(self)
         self._root = tk.Tk()
-        self._root.title(self.title)
+        self._set_title()
         self._init_menu()
         self._canvas = self._init_canvas()
         self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
         self._init_output_widgets()
         self._root.resizable(False, False)
         self._root.mainloop()
+
+    def _set_title(self):
+        filename = os.path.split(self._filename)[-1] if self._filename else "Untitled"
+        self._root.title(f'{filename} - {self.title}')
 
     def _init_canvas(self):
         canvas = tk.Canvas(self._root, width=self.width, height=self.height, bg=self.bg)
@@ -52,11 +60,13 @@ class CCMFGUIMixin:
         menu = tk.Menu(self._root)
 
         menu_file = tk.Menu(menu, tearoff=0)
-        menu_file.add_command(label="Import Data", command=self._handle_import)
-        menu_file.add_command(label="Load Circuit", command=self._handle_load_circuit)
-        menu_file.add_command(label="Save Circuit", command=self._handle_save_circuit)
+        menu_file.add_command(label="New", command=self._handle_new)
+        menu_file.add_command(label="Open...", command=self._handle_open)
+        menu_file.add_command(label="Save", command=self._handle_save)
+        menu_file.add_command(label="Save As...", command=self._handle_save_as)
+        # menu_file.add_command(label="Import Data", command=self._handle_import)
         menu_file.add_separator()
-        menu_file.add_command(label="Exit", command=None)
+        menu_file.add_command(label="Exit", command=self._handle_exit)
         menu.add_cascade(label="File", menu=menu_file)
 
         menu_edit = tk.Menu(menu, tearoff=0)
@@ -116,8 +126,31 @@ class CCMFGUIMixin:
     def _handle_mcmc_sampling(self):
         pass
 
-    def _handle_load_circuit(self):
-        pass
+    def _handle_open(self):
+        filename = filedialog.askopenfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")])
+        if filename:
+            self._filename = filename
+            self._set_title()
+            self._handle_new()
+            self._gui_circuit.load(pickle.load(open(filename, "rb")))
 
-    def _handle_save_circuit(self):
-        pass
+    def _handle_save(self):
+        if self._filename:
+            return pickle.dump(self._gui_circuit.save(), open(self._filename, "wb"))
+        self._handle_save_as()
+
+    def _handle_save_as(self):
+        filename = filedialog.asksaveasfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")],
+                                                defaultextension=f".{self.file_extension}")
+        if filename:
+            pickle.dump(self._gui_circuit.save(), open(filename, "wb"))
+            self._filename = filename
+            self._set_title()
+
+    def _handle_new(self):
+        self._gui_circuit.delete_tk()
+        self._gui_circuit = GUICircuit(self)
+
+    def _handle_exit(self):
+        self._root.quit()
+

@@ -25,7 +25,6 @@ class Link(GUIElement):
     def __init__(self, start_cell, end_cell, gui_circuit):
         self._start_cell = start_cell
         self._end_cell = end_cell
-
         self._gui_circuit = gui_circuit
 
         self._line_id = gui_circuit.canvas.create_line(self._coords, arrow=tk.LAST, width=self.width,
@@ -67,7 +66,7 @@ class Link(GUIElement):
         dp = p2 - p1
         norm = np.linalg.norm(dp)
         dp = dp / norm if norm else 0
-        has_reverse_link = self._gui_circuit.has_edge(self.start, self.end)
+        has_reverse_link = self._gui_circuit.has_edge(self.end, self.start)
         x1, y1 = self._rotate(p1, p1 + dp * self.start.radius, self.angle * has_reverse_link)
         x2, y2 = self._rotate(p2, p2 - dp * self.end.radius, -self.angle * has_reverse_link)
         return x1, y1, x2, y2
@@ -82,12 +81,9 @@ class Link(GUIElement):
     def _refresh(self):
         self._canvas.coords(self._line_id, self._coords)
 
-    def handle_delete(self):
-        super()._handle_delete()
-
     def _handle_delete(self):
         self._gui_circuit.remove_edge(self.start, self.end)
-        super()._handle_delete()
+        self.delete_tk()
         self._gui_circuit.nodes(), self._gui_circuit.edges()
 
     def _handle_drag_start(self, event):
@@ -150,4 +146,4 @@ class PseudoLink(Link):
         return self._handle_delete()
 
     def _handle_delete(self):
-        GUIElement._handle_delete(self)
+        self.delete_tk()

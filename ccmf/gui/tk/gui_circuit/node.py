@@ -74,10 +74,10 @@ class Node(GUIElement):
 
     def _handle_delete(self):
         for i in chain(self._gui_circuit.in_edges(str(self)), self._gui_circuit.out_edges(str(self))):
-            self._gui_circuit.edges[i]['link'].handle_delete()
+            self._gui_circuit.edges[i]['link'].delete_tk()
 
         self._gui_circuit.remove_node(self)
-        super()._handle_delete()
+        self.delete_tk()
 
     def _handle_drag_start(self, event):
         self._drag_offset = np.subtract((event.x, event.y), self._center)
