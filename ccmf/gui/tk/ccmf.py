@@ -9,4 +9,4 @@ from .gui_mixin import CCMFGUIMixin
 class GUICCMF(CCMF, CCMFGUIMixin):
     def __init__(self, generative, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, kernel=NUTS, **options):
         CCMFGUIMixin.__init__(self)
-        CCMF.__init__(self, self._circuit, generative, guide, optimizer, loss, kernel, **options)
+        CCMF.__init__(self, self._gui_circuit, generative, guide, optimizer, loss, kernel, **options)

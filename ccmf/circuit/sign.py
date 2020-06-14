@@ -6,7 +6,5 @@ class Sign(Enum):
     INHIBITORY = 2
     UNSPECIFIED = 3
 
-
-class Connection:
-    def __init__(self, sign):
-        self._sign = sign
+    def __str__(self):
+        return self.name.capitalize()

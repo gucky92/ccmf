@@ -3,15 +3,19 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 
-class GraphElement(ABC):
-    def __init__(self, canvas, object_ids):
-        self._canvas = canvas
+class GUIElement(ABC):
+    def __init__(self, gui_circuit, object_ids):
+        self._gui_circuit = gui_circuit
         self._object_ids = object_ids
         self._init_binding()
         self._menu = self._init_menu()
 
     def __contains__(self, item):
         return item in self._object_ids
+
+    @property
+    def _canvas(self):
+        return self._gui_circuit.canvas
 
     @abstractmethod
     def _init_binding(self):
@@ -58,6 +62,11 @@ class GraphElement(ABC):
     @abstractmethod
     def _refresh(self):
         pass
+
+    @abstractmethod
+    def _handle_delete(self):
+        for object_id in self._object_ids:
+            self._canvas.delete(object_id)
 
     @abstractmethod
     def _handle_drag_start(self, event):

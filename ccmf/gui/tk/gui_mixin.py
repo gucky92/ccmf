@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 
-from ccmf.circuit import Circuit, Sign, Cell
-from .graphics import Node
+from ccmf.circuit import Sign
+from .gui_circuit import Node, GUICircuit
 
 
 class CCMFGUIMixin:
@@ -14,12 +14,12 @@ class CCMFGUIMixin:
     file_extension = 'circuit'
 
     def __init__(self):
-        self._circuit = Circuit()
+        self._gui_circuit = GUICircuit(self)
         self._root = tk.Tk()
         self._root.title(self.title)
         self._init_menu()
         self._canvas = self._init_canvas()
-        self._cell_id_var, self._combo_connection, self._connection_var = self._init_input_widgets()
+        self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
         self._init_output_widgets()
         self._root.resizable(False, False)
         self._root.mainloop()
@@ -86,19 +86,26 @@ class CCMFGUIMixin:
         lbl_sign = tk.Label(self._root, text="Sign: ")
         lbl_sign.grid(row=2, column=column, sticky=sticky)
 
+    @property
+    def current_sign(self):
+        return Sign[self._sign_var.get().upper()]
+
+    @property
+    def canvas(self):
+        return self._canvas
+
+    @property
+    def circuit(self):
+        return self._gui_circuit
+
     def _read_cell_id(self):
         cell_id = self._cell_id_var.get()
         self._cell_id_var.set("")
         return cell_id
 
     def _handle_add_cell(self, event):
-        if event.type == tk.EventType.ButtonPress:
-            center = event.x, event.y
-        else:
-            center = (self._canvas.winfo_width() // 2, self._canvas.winfo_height() // 2)
-        cell = Cell(self._read_cell_id())
-        self._circuit.add_node(cell)
-        Node(cell, self._canvas, center)
+        center = (event.x, event.y) if event.type == tk.EventType.ButtonPress else None
+        self._gui_circuit.add_node(self._read_cell_id(), center=center, gui=self)
 
     def _handle_import(self):
         pass
@@ -111,15 +118,6 @@ class CCMFGUIMixin:
 
     def _handle_load_circuit(self):
         pass
-        # filename = filedialog.askopenfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")])
-        # if filename:
-        #     self._graph.__del__()
-        #     self._graph = pickle.load(open(filename, "rb"))
-        #     self._graph.reload_circuit(self._canvas, self._connection_var)
 
     def _handle_save_circuit(self):
         pass
-        # filename = filedialog.asksaveasfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")],
-        #                                         defaultextension=f".{self.file_extension}")
-        # if filename:
-        #     pickle.dump(self._graph, open(filename, "wb"))
