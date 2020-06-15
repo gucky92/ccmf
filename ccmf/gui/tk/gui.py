@@ -5,24 +5,31 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 
+import pandas as pd
+
+from ccmf.ccmf import CCMF
 from ccmf.circuit import Sign
+from ccmf.model import LinearRecurrent1
 from .gui_circuit import GUICircuit
 
 
-class CCMFGUIMixin:
+class CCMFGUI:
     title = "CCMF"
     width = 720
     height = 480
     n_columns = 4
     bg = "white"
-    file_extension = 'circuit'
+    circuit_format = 'circuit'
+    data_format = 'pkl'
 
     def __init__(self):
         self._filename = None
         self._gui_circuit = GUICircuit(self)
+        self._ccmf = None
+        self._X = None
         self._root = tk.Tk()
         self._set_title()
-        self._init_menu()
+        self._menu_run = self._init_menu()
         self._canvas = self._init_canvas()
         self._ent_cell_id, self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
         self._init_output_widgets()
@@ -68,7 +75,8 @@ class CCMFGUIMixin:
         menu_file.add_command(label="Open...", command=self._handle_open)
         menu_file.add_command(label="Save", command=self._handle_save)
         menu_file.add_command(label="Save As...", command=self._handle_save_as)
-        # menu_file.add_command(label="Import Data", command=self._handle_import)
+        menu_file.add_separator()
+        menu_file.add_command(label="Import Data", command=self._handle_import_data)
         menu_file.add_separator()
         menu_file.add_command(label="Exit", command=self._handle_exit)
         menu.add_cascade(label="File", menu=menu_file)
@@ -82,6 +90,8 @@ class CCMFGUIMixin:
         menu_run = tk.Menu(menu, tearoff=0)
         menu_run.add_command(label="MAP Estimation", command=self._handle_map_estimation)
         menu_run.add_command(label="MCMC Sampling", command=self._handle_mcmc_sampling)
+        menu_run.entryconfig("MCMC Sampling", state=tk.DISABLED)
+
         menu.add_cascade(label="Run", menu=menu_run)
 
         menu_help = tk.Menu(menu, tearoff=0)
@@ -89,6 +99,7 @@ class CCMFGUIMixin:
         menu.add_cascade(label="Help", menu=menu_help)
 
         self._root.config(menu=menu)
+        return menu_run
 
     def _init_output_widgets(self):
         column = self.n_columns - 2
@@ -127,17 +138,23 @@ class CCMFGUIMixin:
         center = (event.x, event.y) if event.type == tk.EventType.ButtonPress else None
         self._gui_circuit.add_node(self._read_cell_id(), center=center, gui=self)
 
-    def _handle_import(self):
-        pass
+    def _handle_import_data(self):
+        filename = filedialog.askopenfilename(filetypes=[(f"{self.data_format}", f"*.{self.data_format}")])
+        if filename:
+            self._X = pd.read_pickle(filename)
 
     def _handle_map_estimation(self):
-        pass
+        if self._X is not None:
+            self._ccmf = CCMF(LinearRecurrent1(self.circuit))
+            self._ccmf.fit(self._X)
+            self._menu_run.entryconfig("MCMC Sampling", state=tk.NORMAL)
 
     def _handle_mcmc_sampling(self):
-        pass
+        if self._ccmf is not None:
+            self._ccmf.run_mcmc(self._X)
 
     def _handle_open(self):
-        filename = filedialog.askopenfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")])
+        filename = filedialog.askopenfilename(filetypes=[(f"{self.circuit_format}", f"*.{self.circuit_format}")])
         if filename:
             self._filename = filename
             self._set_title()
@@ -150,8 +167,8 @@ class CCMFGUIMixin:
         self._handle_save_as()
 
     def _handle_save_as(self):
-        filename = filedialog.asksaveasfilename(filetypes=[(f"{self.file_extension}", f"*.{self.file_extension}")],
-                                                defaultextension=f".{self.file_extension}")
+        filename = filedialog.asksaveasfilename(filetypes=[(f"{self.circuit_format}", f"*.{self.circuit_format}")],
+                                                defaultextension=f".{self.circuit_format}")
         if filename:
             pickle.dump(self._gui_circuit.save(), open(filename, "wb"))
             self._filename = filename

@@ -6,14 +6,19 @@ class Model(ABC):
 
     def __init__(self, circuit):
         self._circuit = circuit
+        self._mask = None
+        self.prior = {}
 
     @abstractmethod
     def model(self):
         pass
 
-    @property
     @abstractmethod
-    def prior(self):
+    def conditioned_model(self, X):
+        pass
+
+    @abstractmethod
+    def _init_prior(self):
         pass
 
     @abstractmethod

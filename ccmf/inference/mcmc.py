@@ -3,16 +3,17 @@ from pyro.infer import MCMC, NUTS
 
 class MCMCSampler:
     def __init__(self, model, kernel=NUTS, **options):
-        self._model = model
+        self.__model = model
         self._kernel = kernel
-        self._defaults = {'num_samples': 100, 'warmup_steps': 0, 'jit_compile': True}.update(options)
+        self.__defaults = {'num_samples': 100, 'warmup_steps': 0, 'jit_compile': True}
+        self.__defaults.update(options)
         self._mcmc = None
 
     def run_mcmc(self, *args, initial_params=None, **options):
-        params = self._defaults.copy()
+        params = self.__defaults.copy()
         params.update(options)
 
-        self._mcmc = MCMC(kernel=self._kernel(self._model,
+        self._mcmc = MCMC(kernel=self._kernel(self.__model,
                                               jit_compile=params['jit_compile'],
                                               ignore_jit_warnings=params['jit_compile']),
                           num_samples=params['num_samples'],

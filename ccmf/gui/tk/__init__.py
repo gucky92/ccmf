@@ -1,1 +1,1 @@
-from .gui_mixin import CCMFGUIMixin
+from .gui import CCMFGUI
