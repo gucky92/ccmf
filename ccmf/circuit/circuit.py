@@ -25,3 +25,11 @@ class Circuit(nx.DiGraph):
             except ValueError:
                 return self._get_unique_id(cell + '-1')
         return cell
+
+    @property
+    def inputs(self):
+        return [cell for cell, in_degrees in self.in_degree() if in_degrees == 0]
+
+    @property
+    def outputs(self):
+        return [cell for cell, in_degrees in self.in_degree() if in_degrees]

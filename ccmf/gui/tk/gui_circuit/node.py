@@ -1,5 +1,5 @@
-from itertools import chain
 import tkinter as tk
+from itertools import chain
 
 import numpy as np
 
@@ -12,6 +12,7 @@ class Node(GUIElement):
     fill = "white"
     radius = 20
     width = 3
+    grid = radius
 
     def __init__(self, cell, gui_circuit, center=None):
         self._cell = cell
@@ -66,9 +67,9 @@ class Node(GUIElement):
         return x - self.radius, y - self.radius, x + self.radius, y + self.radius
 
     def _drag(self, x, y):
-        self._center = np.subtract((x, y), self._drag_offset)
+        self._center = (np.subtract((x, y), self._drag_offset) // self.grid * self.grid).astype(int)
 
-    def _refresh(self):
+    def refresh(self):
         for i in chain(self._gui_circuit.in_edges(str(self)), self._gui_circuit.out_edges(str(self))):
             self._gui_circuit.edges[i]['link'].refresh()
 
@@ -103,4 +104,4 @@ class Node(GUIElement):
 
         if end and np.linalg.norm(np.subtract(end.center, (event.x, event.y))) < end.radius * 2:
             self._gui_circuit.add_edge(self, end)
-            self._refresh()
+            self.refresh()

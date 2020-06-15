@@ -1,11 +1,12 @@
 import os
 import pickle
+import re
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 
 from ccmf.circuit import Sign
-from .gui_circuit import Node, GUICircuit
+from .gui_circuit import GUICircuit
 
 
 class CCMFGUIMixin:
@@ -23,9 +24,12 @@ class CCMFGUIMixin:
         self._set_title()
         self._init_menu()
         self._canvas = self._init_canvas()
-        self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
+        self._ent_cell_id, self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
         self._init_output_widgets()
         self._root.resizable(False, False)
+        self._root.lift()
+        self._root.attributes('-topmost', True)
+        self._root.after_idle(self._root.attributes, '-topmost', False)
         self._root.mainloop()
 
     def _set_title(self):
@@ -54,7 +58,7 @@ class CCMFGUIMixin:
         combo_sign.grid(row=2, column=column, sticky=sticky)
         combo_sign.current(0)
 
-        return cell_id, combo_sign, sign
+        return ent_cell_id, cell_id, combo_sign, sign
 
     def _init_menu(self):
         menu = tk.Menu(self._root)
@@ -110,7 +114,13 @@ class CCMFGUIMixin:
 
     def _read_cell_id(self):
         cell_id = self._cell_id_var.get()
-        self._cell_id_var.set("")
+        numeric_suffix = re.sub('.*?([0-9]*)$', r'\1', cell_id)
+        try:
+            next_cell_id = cell_id[:-len(numeric_suffix)] + str(int(numeric_suffix) + 1)
+            self._cell_id_var.set(next_cell_id)
+            self._ent_cell_id.icursor(tk.END)
+        except ValueError:
+            self._cell_id_var.set('')
         return cell_id
 
     def _handle_add_cell(self, event):

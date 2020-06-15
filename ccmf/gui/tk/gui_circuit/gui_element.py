@@ -36,7 +36,7 @@ class GUIElement(ABC):
     @_center.setter
     def _center(self, center):
         self._move(*tuple(np.subtract(center, self._center)))
-        self._refresh()
+        self.refresh()
 
     @property
     @abstractmethod
@@ -60,7 +60,7 @@ class GUIElement(ABC):
             self._canvas.move(object_id, dx, dy)
 
     @abstractmethod
-    def _refresh(self):
+    def refresh(self):
         pass
 
     def delete_tk(self):

@@ -6,5 +6,10 @@ from ccmf.inference import InferenceEngine
 
 
 class CCMF(InferenceEngine):
-    def __init__(self, circuit, generative, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, kernel=NUTS, **options):
-        super().__init__(generative(circuit).model, guide, optimizer, loss, kernel, **options)
+    def __init__(self, model, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, kernel=NUTS, **options):
+        self._model = model
+
+        super().__init__(self._model.conditioned_model, guide, optimizer, loss, kernel, **options)
+
+    def fit(self, X):
+        return super().fit(self._model.preprocess(X))

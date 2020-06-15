@@ -76,9 +76,6 @@ class Link(GUIElement):
         self.end.drag(x, y)
 
     def refresh(self):
-        return self._refresh()
-
-    def _refresh(self):
         self._canvas.coords(self._line_id, self._coords)
 
     def _handle_delete(self):
@@ -140,7 +137,7 @@ class PseudoLink(Link):
 
     def set_end(self, x, y):
         self.end.center = x, y
-        self._refresh()
+        self.refresh()
 
     def handle_delete(self):
         return self._handle_delete()

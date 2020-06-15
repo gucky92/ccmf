@@ -1,2 +1,2 @@
-from .circuit import *
+from .circuit import Circuit
 from .sign import *

@@ -1,8 +1,8 @@
 import networkx as nx
 
 from ccmf.circuit import Circuit
-from .node import Node
 from .link import Link
+from .node import Node
 
 
 class GUICircuit(Circuit):
@@ -15,8 +15,9 @@ class GUICircuit(Circuit):
         for key, value in saved_circuit.nodes.items():
             transform[key] = self.add_node(key, center=value['center'])
         for key, value in saved_circuit.edges.items():
-            print(value['sign'])
             self.add_edge(transform[key[0]], transform[key[1]], sign=value['sign'])
+        for key, value in self.nodes.items():
+            value['node'].refresh()
 
     def save(self):
         circuit = Circuit()

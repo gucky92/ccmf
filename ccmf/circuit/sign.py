@@ -8,3 +8,8 @@ class Sign(Enum):
 
     def __str__(self):
         return self.name.capitalize()
+
+
+EXCITATORY = Sign.EXCITATORY
+INHIBITORY = Sign.INHIBITORY
+UNSPECIFIED = Sign.UNSPECIFIED
