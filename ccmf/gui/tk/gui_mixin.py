@@ -153,4 +153,3 @@ class CCMFGUIMixin:
 
     def _handle_exit(self):
         self._root.quit()
-
