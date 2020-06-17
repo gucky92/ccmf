@@ -6,15 +6,39 @@ from .sign import Sign
 
 
 class Circuit(nx.DiGraph):
+    """Class for circuit.
+
+    """
     def __init__(self, **attr):
         super().__init__(**attr)
 
-    def add_node(self, node_for_adding, **attr):
+    def add_node(self, node_for_adding: str, **attr):
+        """Add cell to the circuit.
+
+        Parameters
+        ----------
+        node_for_adding
+        attr
+
+        Returns
+        -------
+
+        """
         unique_cell = self._get_unique_id(node_for_adding)
         super().add_node(unique_cell, **attr)
         return unique_cell
 
-    def _get_unique_id(self, cell):
+    def _get_unique_id(self, cell: str):
+        """Generate unique cell ID.
+
+        Parameters
+        ----------
+        cell
+            Cell ID
+        Returns
+        -------
+
+        """
         if not cell:
             if self.number_of_nodes():
                 return self._get_unique_id(list(self.nodes(1))[-1][0])
@@ -30,13 +54,37 @@ class Circuit(nx.DiGraph):
 
     @property
     def inputs(self):
+        """Cells without presynaptic cells.
+
+        Returns
+        -------
+
+        """
         return [cell for cell, in_degrees in self.in_degree() if in_degrees == 0]
 
     @property
     def outputs(self):
+        """Cells with presynaptic cells.
+
+        Returns
+        -------
+
+        """
         return [cell for cell, in_degrees in self.in_degree() if in_degrees]
 
     def show(self, ax=None, node_size=1000, node_color='lightgray'):
+        """Visualize circuit.
+
+        Parameters
+        ----------
+        ax
+        node_size
+        node_color
+
+        Returns
+        -------
+
+        """
         def flip_y(x, y):
             return x, -y
         try:

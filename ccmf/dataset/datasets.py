@@ -5,6 +5,12 @@ from .generate import gaussian_tuning
 
 
 def load_fake_dm9():
+    """Generate a data set for a Dm9-like linear recurrent circuit.
+
+    Returns
+    -------
+
+    """
     W = np.array([[1, 0, 0, 0],
                   [0, 1, 0, 0],
                   [0, 0, 1, 0],

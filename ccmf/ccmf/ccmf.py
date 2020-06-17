@@ -8,7 +8,7 @@ from ccmf.model.base import Model
 
 
 class CCMF(InferenceEngine):
-    """Circuit-constrained matrix factorization
+    """Circuit-constrained matrix factorization.
 
     """
     def __init__(self, model: Model, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, kernel=NUTS, **options):
@@ -60,6 +60,7 @@ class CCMF(InferenceEngine):
         X
             Data.
         initial_params
+            Initial state for MCMC algorithm. MAP estimates will be used if set to 'map'.
 
         options
 
@@ -67,9 +68,9 @@ class CCMF(InferenceEngine):
         -------
         self
         """
-        if initial_params == 'map':
+        if isinstance(initial_params, str) and initial_params.lower() == 'map':
             initial_params = self.map_estimates
-        super().run_mcmc(X, initial_params=initial_params, **options)
+        super().run_mcmc(self._model.preprocess(X), initial_params=initial_params, **options)
         self._samples = super().get_samples()
         return self
 

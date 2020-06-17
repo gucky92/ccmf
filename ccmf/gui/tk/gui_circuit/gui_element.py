@@ -4,6 +4,9 @@ import numpy as np
 
 
 class GUIElement(ABC):
+    """Abstract base class for `Node` and `Link`.
+
+    """
     def __init__(self, gui_circuit, object_ids):
         self._gui_circuit = gui_circuit
         self._object_ids = object_ids

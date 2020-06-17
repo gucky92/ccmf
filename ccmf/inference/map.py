@@ -7,6 +7,9 @@ from tqdm import tqdm
 
 
 class MAPEstimator(BaseEstimator):
+    """Class for MAP estimation.
+
+    """
     def __init__(self, model, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, **options):
         self.__model = model
         self._guide = guide(model) if isinstance(guide, type) else guide

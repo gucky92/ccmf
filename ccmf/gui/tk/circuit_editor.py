@@ -10,6 +10,9 @@ from .gui_circuit import GUICircuit
 
 
 class CircuitEditor:
+    """GUI for creating, editing, opening and saving `Circuit`.
+
+    """
     title = "Circuit Editor"
     width = 720
     height = 480

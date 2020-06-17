@@ -2,6 +2,9 @@ from pyro.infer import MCMC, NUTS
 
 
 class MCMCSampler:
+    """Class for MCMC sampling.
+
+    """
     def __init__(self, model, kernel=NUTS, **options):
         self.__model = model
         self._kernel = kernel
@@ -27,5 +30,11 @@ class MCMCSampler:
 
     @property
     def sample_mean(self):
+        """Calculate mean of posterior samples.
+
+        Returns
+        -------
+
+        """
         if self._mcmc:
             return {latent: samples.mean(0) for latent, samples in self.get_samples().items()}

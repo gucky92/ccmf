@@ -7,6 +7,9 @@ from .gui_element import GUIElement
 
 
 class Link(GUIElement):
+    """GUI component for synaptic connection.
+
+    """
     angle = .2
     width = 3
 

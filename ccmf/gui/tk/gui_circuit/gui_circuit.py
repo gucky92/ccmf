@@ -6,6 +6,9 @@ from .node import Node
 
 
 class GUICircuit(Circuit):
+    """Circuit class with GUI functions.
+
+    """
     def __init__(self, gui, **attr):
         self._gui = gui
         super().__init__(**attr)

@@ -8,6 +8,9 @@ from .link import PseudoLink
 
 
 class Node(GUIElement):
+    """GUI component for cell.
+
+    """
     activefill = "cyan"
     fill = "white"
     radius = 20
