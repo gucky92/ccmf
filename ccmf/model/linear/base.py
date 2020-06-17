@@ -4,7 +4,7 @@ import pyro
 import pyro.distributions as dist
 import torch
 
-from .model import Model
+from ccmf.model.base.model import Model
 
 
 class LinearRecurrent(Model, ABC):
@@ -29,3 +29,9 @@ class LinearRecurrent(Model, ABC):
     @staticmethod
     def EV(W, M, U):
         return torch.inverse(torch.eye(*M.shape) - M) @ W @ U
+
+    def preprocess(self, X):
+        df_X = [X.loc[i] for i in self._circuit.inputs + self._circuit.outputs]
+        self._mask = [~torch.tensor(df_Xi.isna().values) for df_Xi in df_X]
+        self.prior['U'] = self.prior['U'].expand(torch.Size([len(self._circuit.inputs), X.shape[1]]))
+        return {f'X{i}': torch.tensor(df_Xi.fillna(0).values).float() for i, df_Xi in enumerate(df_X)}

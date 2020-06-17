@@ -9,7 +9,7 @@ import pandas as pd
 
 from ccmf.ccmf import CCMF
 from ccmf.circuit import Sign
-from ccmf.model import LinearRecurrent1
+from ccmf.model import UniformModel
 from .gui_circuit import GUICircuit
 
 
@@ -145,7 +145,7 @@ class CCMFGUI:
 
     def _handle_map_estimation(self):
         if self._X is not None:
-            self._ccmf = CCMF(LinearRecurrent1(self.circuit))
+            self._ccmf = CCMF(UniformModel(self.circuit))
             self._ccmf.fit(self._X)
             self._menu_run.entryconfig("MCMC Sampling", state=tk.NORMAL)
 

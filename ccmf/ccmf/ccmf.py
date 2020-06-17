@@ -10,5 +10,14 @@ class CCMF(InferenceEngine):
         self._model = model
         super().__init__(self._model.conditioned_model, guide, optimizer, loss, kernel, **options)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_optimizer']
+        return state
+
+    def __setstate__(self, state):
+        state['_optimizer'] = Adam
+        self.__dict__ = state
+
     def fit(self, X):
         return super().fit(self._model.preprocess(X))
