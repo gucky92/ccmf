@@ -8,10 +8,12 @@ from ccmf.inference import InferenceEngine
 class CCMF(InferenceEngine):
     def __init__(self, model, guide=AutoDelta, optimizer=Adam, loss=Trace_ELBO, kernel=NUTS, **options):
         self._model = model
+        self._samples = None
         super().__init__(self._model.conditioned_model, guide, optimizer, loss, kernel, **options)
 
     def __getstate__(self):
         state = self.__dict__.copy()
+        del state['_mcmc']
         del state['_optimizer']
         return state
 
@@ -21,3 +23,11 @@ class CCMF(InferenceEngine):
 
     def fit(self, X):
         return super().fit(self._model.preprocess(X))
+
+    def run_mcmc(self, *args, initial_params=None, **options):
+        _ = super().run_mcmc(*args, initial_params=None, **options)
+        self._samples = super().get_samples()
+        return _
+
+    def get_samples(self, as_dataframe=False):
+        return self._samples

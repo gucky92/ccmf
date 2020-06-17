@@ -21,8 +21,7 @@ class MCMCSampler:
                           initial_params=initial_params)
         return self._mcmc.run(*args)
 
-    @property
-    def samples(self):
+    def get_samples(self):
         if self._mcmc:
             return self._mcmc.get_samples()
 

@@ -8,6 +8,7 @@ class Model(ABC):
         self._circuit = circuit
         self._mask = None
         self.prior = {}
+        self.df_format = {}
 
     @abstractmethod
     def model(self):

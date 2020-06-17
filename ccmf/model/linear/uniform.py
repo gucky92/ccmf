@@ -35,6 +35,13 @@ class UniformModel(LinearRecurrent):
                 if circuit.has_edge(u, v):
                     M[j, i] = torch.tensor(sign_to_range[circuit.edges[u, v]['sign']])
 
+        self.df_format = {
+            'W': {'index': outputs, 'columns': inputs},
+            'M': {'index': outputs, 'columns': outputs},
+            'U': {'index': inputs},
+            'X': {'index': inputs + outputs}
+        }
+
         return {'W': dist.Uniform(*W.permute(2, 0, 1)),
                 'M': dist.Uniform(*M.permute(2, 0, 1)),
                 'U': dist.Normal(0, self.sigma_u)}
