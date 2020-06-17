@@ -26,6 +26,7 @@ class MAPEstimator(BaseEstimator):
         self._guide(*args)
         self._svi = SVI(self.__model, self._guide, optimizer, self._loss)
         self._loss_curve = [self._svi.step(*args) for _ in tqdm(range(params['max_iter']))]
+        return self
 
     @property
     def loss_curve(self):

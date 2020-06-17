@@ -9,7 +9,7 @@ class MCMCSampler:
         self.__defaults.update(options)
         self._mcmc = None
 
-    def run_mcmc(self, *args, initial_params=None, **options):
+    def run_mcmc(self, X, initial_params=None, **options):
         params = self.__defaults.copy()
         params.update(options)
 
@@ -18,8 +18,8 @@ class MCMCSampler:
                                               ignore_jit_warnings=params['jit_compile']),
                           num_samples=params['num_samples'],
                           warmup_steps=params['warmup_steps'],
-                          initial_params=initial_params)
-        return self._mcmc.run(*args)
+                          initial_params=initial_params, num_chains=1)
+        return self._mcmc.run(X)
 
     def get_samples(self):
         if self._mcmc:
@@ -28,4 +28,4 @@ class MCMCSampler:
     @property
     def sample_mean(self):
         if self._mcmc:
-            return {latent: samples.mean(0) for latent, samples in self.samples.items()}
+            return {latent: samples.mean(0) for latent, samples in self.get_samples().items()}
