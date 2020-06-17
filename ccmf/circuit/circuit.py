@@ -2,6 +2,8 @@ import re
 
 import networkx as nx
 
+from .sign import Sign
+
 
 class Circuit(nx.DiGraph):
     def __init__(self, **attr):
@@ -33,3 +35,16 @@ class Circuit(nx.DiGraph):
     @property
     def outputs(self):
         return [cell for cell, in_degrees in self.in_degree() if in_degrees]
+
+    def show(self, ax=None, node_size=1000, node_color='lightgray'):
+        def flip_y(x, y):
+            return x, -y
+        try:
+            pos = {i: flip_y(*self.nodes[i]['center']) for i in self.nodes}
+        except KeyError:
+            pos = None
+
+        edge_color = [Sign.color(self.edges[i]['sign']) for i in self.edges]
+
+        nx.draw(self, pos=pos, ax=ax, node_size=node_size, node_color=node_color, edge_color=edge_color,
+                with_labels=True)

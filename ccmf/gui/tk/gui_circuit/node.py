@@ -17,6 +17,7 @@ class Node(GUIElement):
     def __init__(self, cell, gui_circuit, center=None):
         self._cell = cell
         self._gui_circuit = gui_circuit
+        self.__center = None
 
         self._drag_offset = None
         self._pseudo_link = None
@@ -47,7 +48,11 @@ class Node(GUIElement):
 
     @property
     def center(self):
-        return self._center
+        try:
+            self.__center = self._center
+        except tk.TclError:
+            pass
+        return self.__center
 
     def drag(self, x, y):
         return self._drag(x, y)

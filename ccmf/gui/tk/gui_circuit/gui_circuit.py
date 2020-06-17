@@ -19,6 +19,9 @@ class GUICircuit(Circuit):
         for key, value in self.nodes.items():
             value['node'].refresh()
 
+    def get_circuit(self):
+        return self.save()
+
     def save(self):
         circuit = Circuit()
         for key, value in self.nodes.items():

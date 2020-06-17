@@ -29,7 +29,7 @@ class Link(GUIElement):
 
         self._line_id = gui_circuit.canvas.create_line(self._coords, arrow=tk.LAST, width=self.width,
                                                        activefill=self.activefill[self._sign],
-                                                       fill=self.fill[self._sign])
+                                                       fill=Sign.color(self._sign))
 
         super().__init__(gui_circuit, [self._line_id])
         self._lower()

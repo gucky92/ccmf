@@ -5,16 +5,12 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
 
-import pandas as pd
-
-from ccmf.ccmf import CCMF
 from ccmf.circuit import Sign
-from ccmf.model import UniformModel
 from .gui_circuit import GUICircuit
 
 
-class CCMFGUI:
-    title = "CCMF"
+class CircuitEditor:
+    title = "Circuit Editor"
     width = 720
     height = 480
     n_columns = 4
@@ -29,7 +25,7 @@ class CCMFGUI:
         self._X = None
         self._root = tk.Tk()
         self._set_title()
-        self._menu_run = self._init_menu()
+        self._init_menu()
         self._canvas = self._init_canvas()
         self._ent_cell_id, self._cell_id_var, self._combo_sign, self._sign_var = self._init_input_widgets()
         self._init_output_widgets()
@@ -38,6 +34,9 @@ class CCMFGUI:
         self._root.attributes('-topmost', True)
         self._root.after_idle(self._root.attributes, '-topmost', False)
         self._root.mainloop()
+
+    def get_circuit(self):
+        return self._gui_circuit.get_circuit()
 
     def _set_title(self):
         filename = os.path.split(self._filename)[-1] if self._filename else "Untitled"
@@ -75,8 +74,7 @@ class CCMFGUI:
         menu_file.add_command(label="Open...", command=self._handle_open)
         menu_file.add_command(label="Save", command=self._handle_save)
         menu_file.add_command(label="Save As...", command=self._handle_save_as)
-        menu_file.add_separator()
-        menu_file.add_command(label="Import Data", command=self._handle_import_data)
+
         menu_file.add_separator()
         menu_file.add_command(label="Exit", command=self._handle_exit)
         menu.add_cascade(label="File", menu=menu_file)
@@ -87,19 +85,11 @@ class CCMFGUI:
         menu_edit.add_command(label="Paste", command=None)
         menu.add_cascade(label="Edit", menu=menu_edit)
 
-        menu_run = tk.Menu(menu, tearoff=0)
-        menu_run.add_command(label="MAP Estimation", command=self._handle_map_estimation)
-        menu_run.add_command(label="MCMC Sampling", command=self._handle_mcmc_sampling)
-        menu_run.entryconfig("MCMC Sampling", state=tk.DISABLED)
-
-        menu.add_cascade(label="Run", menu=menu_run)
-
         menu_help = tk.Menu(menu, tearoff=0)
         menu_help.add_command(label="About", command=None)
         menu.add_cascade(label="Help", menu=menu_help)
 
         self._root.config(menu=menu)
-        return menu_run
 
     def _init_output_widgets(self):
         column = self.n_columns - 2
@@ -137,21 +127,6 @@ class CCMFGUI:
     def _handle_add_cell(self, event):
         center = (event.x, event.y) if event.type == tk.EventType.ButtonPress else None
         self._gui_circuit.add_node(self._read_cell_id(), center=center, gui=self)
-
-    def _handle_import_data(self):
-        filename = filedialog.askopenfilename(filetypes=[(f"{self.data_format}", f"*.{self.data_format}")])
-        if filename:
-            self._X = pd.read_pickle(filename)
-
-    def _handle_map_estimation(self):
-        if self._X is not None:
-            self._ccmf = CCMF(UniformModel(self.circuit))
-            self._ccmf.fit(self._X)
-            self._menu_run.entryconfig("MCMC Sampling", state=tk.NORMAL)
-
-    def _handle_mcmc_sampling(self):
-        if self._ccmf is not None:
-            self._ccmf.run_mcmc(self._X)
 
     def _handle_open(self):
         filename = filedialog.askopenfilename(filetypes=[(f"{self.circuit_format}", f"*.{self.circuit_format}")])

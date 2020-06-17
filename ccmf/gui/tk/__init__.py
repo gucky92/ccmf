@@ -1,1 +1,1 @@
-from .gui import CCMFGUI
+from .circuit_editor import CircuitEditor
