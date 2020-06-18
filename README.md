@@ -1,5 +1,10 @@
 # ccmf
 Circuit constrained matrix factorization
+
+<div align="center">
+  <a href="https://ccmf.readthedocs.io/en/latest/"> <img width="400px" src="docs/source/_static/img/flowchart.png"></a>
+</div>
+
 ## Installing
 
 **Install using pip:**
