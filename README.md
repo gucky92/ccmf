@@ -8,5 +8,8 @@ Circuit constrained matrix factorization
 pip install ccmf
 ```
 
+## Usages
+Refer to [examples](/examples) for usages.
+
 ## Documentation
 * https://ccmf.readthedocs.io/en/latest/
