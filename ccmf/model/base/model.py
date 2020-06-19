@@ -72,3 +72,7 @@ class Model(ABC):
 
         """
         pass
+
+    @abstractmethod
+    def process_samples(self, samples):
+        return samples

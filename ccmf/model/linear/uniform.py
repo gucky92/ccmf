@@ -36,20 +36,26 @@ class UniformModel(LinearRecurrent):
                          UNSPECIFIED: (-1, 1)}
 
         W = torch.zeros(len(outputs), len(inputs), 2)
-        W[..., 1] += self.eps
+        self.W_mask = torch.zeros(len(outputs), len(inputs))
 
         for i, u in enumerate(inputs):
             for j, v in enumerate(outputs):
                 if circuit.has_edge(u, v):
                     W[j, i] = torch.tensor(sign_to_range[circuit.edges[u, v]['sign']])
+                    self.W_mask[j, i] = 1
+                else:
+                    W[j, i] = torch.tensor((-1000, 1000))
 
         M = torch.zeros(len(outputs), len(outputs), 2)
-        M[..., 1] += self.eps
+        self.M_mask = torch.zeros(len(outputs), len(outputs))
 
         for i, u in enumerate(outputs):
             for j, v in enumerate(outputs):
                 if circuit.has_edge(u, v):
                     M[j, i] = torch.tensor(sign_to_range[circuit.edges[u, v]['sign']])
+                    self.M_mask[j, i] = 1
+                else:
+                    M[j, i] = torch.tensor((-1000, 1000))
 
         self.df_format = {
             'W': {'index': outputs, 'columns': inputs},

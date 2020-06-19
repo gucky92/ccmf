@@ -81,4 +81,8 @@ class CCMF(InferenceEngine):
         -------
 
         """
-        return self._samples
+        return self._model.process_samples(self._samples)
+
+    @property
+    def map_estimates(self):
+        return self._model.process_samples(super().map_estimates)
