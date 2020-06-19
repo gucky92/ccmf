@@ -1,17 +1,33 @@
-from ccmf.circuit.sign import *
-from .base import LinearRecurrent
-
 import pyro.distributions as dist
 import torch
 
+from ccmf.circuit.sign import *
+from ccmf.circuit.circuit import Circuit
+from .base import LinearRecurrent
+
 
 class UniformModel(LinearRecurrent):
-    def __init__(self, circuit, sigma_x=.01, sigma_u=1):
+    """A linear recurrent model with uniform distributions as priors.
+
+    """
+    def __init__(self, circuit: Circuit, sigma_x=.01, sigma_u=1):
         super().__init__(circuit, sigma_x)
         self.sigma_u = sigma_u
         self.prior = self._init_prior()
 
     def _init_prior(self):
+        """Construct uniform distributions based on the signs of connections.
+
+        The distribution of an entry in the weight matrix is determined by the corresponding connection sign according
+        to:
+        * U(0, 1) if `EXCITATORY`
+        * U(-1, 0) if `INHIBITORY`
+        * U(-1, 1) if `UNSPECIFIED`
+
+        Returns
+        -------
+
+        """
         circuit = self._circuit
         inputs, outputs = circuit.inputs, circuit.outputs
 

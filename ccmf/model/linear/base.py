@@ -8,6 +8,9 @@ from ccmf.model.base.model import Model
 
 
 class LinearRecurrent(Model, ABC):
+    """Abstract base class for models based on the steady state equation :math:`textbf{u}+(M-I)\textbf{v}=\textbf{0}`.
+
+    """
     def __init__(self, circuit, sigma_x):
         super().__init__(circuit)
         self.sigma_x = sigma_x

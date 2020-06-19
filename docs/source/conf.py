@@ -30,7 +30,8 @@ author = 'Ka Chung Lam'
 # ones.
 extensions = [
     'sphinx.ext.napoleon',
-    'sphinx_rtd_theme'
+    'sphinx_rtd_theme',
+    'sphinx.ext.pngmath'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
