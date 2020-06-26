@@ -329,6 +329,13 @@ class CircuitModel:
             f"Neuron `{neuron_name}` not in circuit. "
             "Specify neuron first with `add_neuron`."
         )
+        if self.sample_size is None:
+            self._sample_size = data.shape[0]
+        else:
+            assert data.shape[0] == self.sample_size, (
+                f"Data size of {data.shape[0]} does not match sample "
+                f"size of {self.samples_size} for circuit."
+            )
         neuron_data = NeuronData(neuron_name, data, **data_kwargs)
         self.circuit.nodes[neuron_name].update({'neuron_data': neuron_data})
 
