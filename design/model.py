@@ -85,29 +85,39 @@ class Neuron(_NonlinMixin):
         else:
             return mean
 
-    def _mean(self, sample_size, neuron_data=None):
+    def _data_sample(self, sample_size, neuron_data):
         """
         Parameters
         ----------
         sample_size : int
         neuron_data : NeuronData instance
         """
-        # current mean value
-        if self.vary:
-            try:
-                # if param exists already
-                return pyro.param(self.name)
-            except KeyError:
-                # if param doesn't exist try other options
-                pass
-
         if neuron_data is None:
             # no data use uninformative prior
             return dist.Normal(0, self.scale).sample((sample_size,))
         else:
             # draw from data mean and scale
             # if data scale is zero this is deterministic
-            return dist.Normal(neuron_data.mean, neuron_data.scale).sample()
+            return dist.Normal(
+                neuron_data.mean, neuron_data.scale
+            ).sample()
+
+    # def _mean(self, sample_size, neuron_data=None):
+    #     """
+    #     Parameters
+    #     ----------
+    #     sample_size : int
+    #     neuron_data : NeuronData instance
+    #     """
+    #     # current mean value
+    #     if self.vary:
+    #         try:
+    #             # if param exists already
+    #             return pyro.param(self.name)
+    #         except KeyError:
+    #             sample = self._data_sample(sample_size, neuron_data)
+    #             return pyro.param(self.name, sample)
+    #     return self._data_sample(sample_size, neuron_data)
 
 
 @dataclass
@@ -143,7 +153,7 @@ class Synapse:
                 return -1.0
 
         else:
-            return sign
+            return self.sign
 
     def sample(self):
         """
@@ -216,12 +226,13 @@ class NeuronData(_NonlinMixin):
     def sample(self, mean):
         # takes the empirical variance
         mean = self(mean)
-        data, mean = torch.broadcast_tensors(self.nanless, mean)
+        # broadcast to normalize each observation
+        data, mean = torch.broadcast_tensors(self.nanless, mean[:, None])
         # normalize mean predictions
         # TODO specify l1 or l2 normalization
         mean = mean * (
             torch.sqrt(torch.sum(data ** 2 * self.mask_float, axis=0))[None]
-            / torch.sqrt(torch.sum(mean ** 2 * self.mask_float, axis=1))[None]
+            / torch.sqrt(torch.sum(mean ** 2 * self.mask_float, axis=0))[None]
         )
         # uses the empirical std in the normal
         # TODO is this how to apply the mask for observations?
@@ -271,7 +282,7 @@ class CircuitModel:
     @property
     def synapses(self):
         return {
-            key: value.get('synapse', Synapse(key))
+            key: value.get('synapse', Synapse(key[1], key[0]))
             for key, value in self.circuit.edges.items()
         }
 
@@ -353,6 +364,18 @@ class CircuitModel:
         """
         return [pre for pre, post in self.circuit.in_edges(neuron)]
 
+    def init_latent_responses(self):
+        data = self.data
+        neurons = self.neurons
+
+        self.latent_responses = {}
+        for name, neuron in neurons.items():
+            self.latent_responses[name] = neuron._data_sample(
+                self.sample_size,
+                neuron_data=data[name]
+            )
+        return self
+
     def conditioned_model(self):
         """Model for pyro
         """
@@ -369,10 +392,11 @@ class CircuitModel:
                 # if neuron has inputs
                 for idx, input in enumerate(inputs):
                     w_ij = synapses[(input, name)].sample()
-                    x_j = neurons[input]._mean(
-                        self.sample_size,
-                        neuron_data=data[input]
-                    )
+                    x_j = self.latent_responses[input]
+                    # x_j = neurons[input]._mean(
+                    #     self.sample_size,
+                    #     neuron_data=data[input]
+                    # )
 
                     if idx == 0:
                         x = x_j[:, None]
@@ -389,17 +413,19 @@ class CircuitModel:
                 x = x / torch.norm(x)
                 # linear prediction
                 y_pred = x @ w
-
+                # set latent responses
+                self.latent_responses[name] = y_pred
             else:
                 # if neuron has no inputs just use the mean as the prediction
-                y_pred = neuron._mean(
-                    self.sample_size,
-                    neuron_data=neuron_data
-                )
+                y_pred = self.latent_responses[name]
+                # y_pred = neuron._mean(
+                #     self.sample_size,
+                #     neuron_data=neuron_data
+                # )
 
             # sample from neuron
             y_pred = neuron.sample(y_pred)
 
             # conditional sample
-            if neuron_data is not None:
+            if neuron_data is not None and neuron.vary:
                 neuron_data.sample(y_pred)
