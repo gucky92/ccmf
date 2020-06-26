@@ -185,7 +185,7 @@ class NeuronData(_NonlinMixin):
             # default variance of 1 if not enough samples - TODO change?
             var = torch.ones(n.shape, dtype=FLOAT_TYPE)
             var[n > 1] = torch.sum(
-                ((self.nanless - self.mean) ** 2) * self.mask_float,
+                ((self.nanless - self.mean[:, None]) ** 2) * self.mask_float,
                 axis=1
             )[n > 1] / (n - 1.0)[n > 1]
             self.scale = torch.sqrt(var)
