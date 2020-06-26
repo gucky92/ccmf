@@ -27,19 +27,13 @@ class _NonlinMixin:
         """
         Sample nonlinearity gain
         """
-        if self.nonlin is None or self.gain is None:
-            return 1.0
-        else:
-            return pyro.sample(f"{GAIN_PREFIX}{self.name}", self.gain)
+        return pyro.sample(f"{GAIN_PREFIX}{self.name}", self.gain)
 
     def sample_offset(self):
         """
         Sample nonlinearity offset
         """
-        if self.nonlin is None or self.offset is None:
-            return 0.0
-        else:
-            return pyro.sample(f"{OFFSET_PREFIX}{self.name}", self.offset)
+        return pyro.sample(f"{OFFSET_PREFIX}{self.name}", self.offset)
 
     def __call__(self, tensor):
         """
@@ -48,6 +42,16 @@ class _NonlinMixin:
 
         if self.nonlin is None:
             return tensor
+        elif self.gain is None and self.offset is None:
+            return self.nonlin(tensor)
+        elif self.gain is None:
+            offset = self.sample_offset()
+            return self.nonlin(
+                tensor - offset
+            ) + self.nonlin(offset)
+        elif self.offset is None:
+            gain = self.sample_gain()
+            return self.nonlin(gain * tensor)
         else:
             offset = self.sample_offset()
             gain = self.sample_gain()
@@ -75,9 +79,8 @@ class Neuron(_NonlinMixin):
     # TODO heteroscedasticity? - effect on prior_dist in _mean
 
     def sample(self, mean):
-        # applies nonlinearity (if present)
+        # applies nonlinearity if present
         mean = self(mean)
-
         # if vary sample from normal otherwise just return mean
         if self.vary:
             return pyro.sample(self.name, dist.Normal(mean, self.scale))
@@ -101,23 +104,6 @@ class Neuron(_NonlinMixin):
             return dist.Normal(
                 neuron_data.mean, neuron_data.scale
             ).sample()
-
-    # def _mean(self, sample_size, neuron_data=None):
-    #     """
-    #     Parameters
-    #     ----------
-    #     sample_size : int
-    #     neuron_data : NeuronData instance
-    #     """
-    #     # current mean value
-    #     if self.vary:
-    #         try:
-    #             # if param exists already
-    #             return pyro.param(self.name)
-    #         except KeyError:
-    #             sample = self._data_sample(sample_size, neuron_data)
-    #             return pyro.param(self.name, sample)
-    #     return self._data_sample(sample_size, neuron_data)
 
 
 @dataclass
@@ -267,6 +253,8 @@ class CircuitModel:
 
         # sample size ones data has been added
         self._sample_size = None
+        # initialized latent X dictionary
+        self._latent_X_dict = None
 
     @property
     def circuit(self):
@@ -364,17 +352,22 @@ class CircuitModel:
         """
         return [pre for pre, post in self.circuit.in_edges(neuron)]
 
-    def init_latent_responses(self):
-        data = self.data
-        neurons = self.neurons
+    @property
+    def _latent_X(self):
+        if self._latent_X_dict is None:
+            data = self.data
+            neurons = self.neurons
 
-        self.latent_responses = {}
-        for name, neuron in neurons.items():
-            self.latent_responses[name] = neuron._data_sample(
-                self.sample_size,
-                neuron_data=data[name]
-            )
-        return self
+            dictionary = {}
+            for name, neuron in neurons.items():
+                dictionary[name] = neuron._data_sample(
+                    self.sample_size,
+                    neuron_data=data[name]
+                )
+
+            self._latent_X_dict = dictionary
+
+        return self._latent_X_dict
 
     def conditioned_model(self):
         """Model for pyro
@@ -392,11 +385,7 @@ class CircuitModel:
                 # if neuron has inputs
                 for idx, input in enumerate(inputs):
                     w_ij = synapses[(input, name)].sample()
-                    x_j = self.latent_responses[input]
-                    # x_j = neurons[input]._mean(
-                    #     self.sample_size,
-                    #     neuron_data=data[input]
-                    # )
+                    x_j = self._latent_X[input]
 
                     if idx == 0:
                         x = x_j[:, None]
@@ -413,18 +402,14 @@ class CircuitModel:
                 x = x / torch.norm(x)
                 # linear prediction
                 y_pred = x @ w
-                # set latent responses
-                self.latent_responses[name] = y_pred
             else:
                 # if neuron has no inputs just use the mean as the prediction
-                y_pred = self.latent_responses[name]
-                # y_pred = neuron._mean(
-                #     self.sample_size,
-                #     neuron_data=neuron_data
-                # )
+                y_pred = self._latent_X[name]
 
             # sample from neuron
             y_pred = neuron.sample(y_pred)
+            # use latest sample as latent to use for other neurons
+            self._latent_X[name] = y_pred.detach()
 
             # conditional sample
             if neuron_data is not None and neuron.vary:
