@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 import torch
 import pyro
-from pyro.distributions import dist
+import pyro.distributions as dist
 
 
 GAIN_PREFIX = "gain_"
@@ -61,9 +61,6 @@ class Neuron(_NonlinMixin):
     """
     Neuron class that holds the following attributes
     """
-    __slots__ = (
-        'name', 'nonlin', 'gain', 'offset', 'vary', 'scale'
-    )
     name: str
     # intrinsic nonlinearity
     nonlin: Optional[Callable] = None
@@ -92,7 +89,8 @@ class Neuron(_NonlinMixin):
         """
         Parameters
         ----------
-        data : NeuronData instance
+        sample_size : int
+        neuron_data : NeuronData instance
         """
         # current mean value
         if self.vary:
@@ -117,7 +115,6 @@ class Synapse:
     """
     Synapse class that holds the following attributes
     """
-    __slots__ = ('postsynaptic', 'presynaptic', 'prior_dist', 'sign', 'vary')
     # name of postsynaptic neuron
     postsynaptic: str
     # name of presynaptic neuron
@@ -199,10 +196,6 @@ class NeuronData(_NonlinMixin):
                 self.scale = torch.tensor(self.scale, dtype=FLOAT_TYPE)
             assert self.scale.shape == n.shape
 
-    __slots__ = (
-        'neuron_name', 'data', 'nonlin', 'gain', 'offset', 'scale',
-        'mean', 'mask', 'mask_float', 'nanless'
-    )
     # name of parameter
     neuron_name: str
     # data tensor
@@ -250,7 +243,7 @@ class CircuitModel:
     circuit : networkx.DiGraph
     """
 
-    def __init__(self, circuit: Optional(nx.DiGraph) = None):
+    def __init__(self, circuit: Optional[nx.DiGraph] = None):
         if circuit is None:
             self._circuit = nx.DiGraph()
         else:
