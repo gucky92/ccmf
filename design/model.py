@@ -110,6 +110,7 @@ class Synapse:
     """
     Synapse class that holds the following attributes
     """
+    # TODO plugging in synaptic count and getting the correct LogNormal
     # name of presynaptic neuron
     presynaptic: str
     # name of postsynaptic neuron
@@ -130,6 +131,7 @@ class Synapse:
         Sample the sign for the synapse
         """
         if isinstance(self.sign, dist.Bernoulli):
+            # TODO won't work with pyro
             sign = pyro.sample(f"{SIGN_PREFIX}{self.name}", self.sign)
 
             if sign:
@@ -159,6 +161,8 @@ class NeuronData(_NonlinMixin):
     """
     Dataclass that holds the following attributes
     """
+
+    # TODO assign fixed gain and offset dependent on data?
 
     def __post_init__(self):
         if isinstance(self.data, np.ndarray):
@@ -230,6 +234,13 @@ class NeuronData(_NonlinMixin):
         return s
 
 
+# TODO
+# - get mean effective weight matrix after fitting
+# - get mean latent_X after fitting
+# - plotting functionality
+# - generateing data
+# - sampling from circuit after fitting (return dictionary of latents)
+# - slicing of circuit data for splitting dataset and cross-validation
 class CircuitModel:
     """
     Circuit model class that implements `conditioned_model` method.
@@ -262,7 +273,9 @@ class CircuitModel:
     @property
     def neurons(self):
         """
-        Dictionary with neuron instances for each neuron
+        Dictionary with `Neuron` instances for each neuron.
+
+        The keys are the names of the neurons.
         """
         return {
             key: value.get('neuron', Neuron(key))
@@ -272,7 +285,9 @@ class CircuitModel:
     @property
     def synapses(self):
         """
-        Dictionary
+        Dictionary with `Synapse` instances for each existing synapse.
+
+        The keys are a two-tuple of form (presynaptic, postsynaptic)
         """
         return {
             key: value.get('synapse', Synapse(key[0], key[1]))
@@ -281,6 +296,14 @@ class CircuitModel:
 
     @property
     def data(self):
+        """
+        Dictionary with `NeuronData` instances for each neuron.
+
+        The keys are the names of the neurons.
+
+        Neurons with no data are still present in dictionary but have
+        None as their value.
+        """
         return {
             key: value.get('neuron_data', None)
             for key, value in self.circuit.nodes.items()
