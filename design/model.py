@@ -15,6 +15,8 @@ GAIN_PREFIX = "gain_"
 OFFSET_PREFIX = "offset_"
 DATA_PREFIX = "data_"
 SIGN_PREFIX = "sign_"
+# TODO what is the correct float type?
+FLOAT_TYPE = torch.float32
 
 
 class _NonlinMixin:
@@ -58,11 +60,9 @@ class Neuron(_NonlinMixin):
     Neuron class that holds the following attributes
     """
     __slots__ = (
-        'name', 'prior_dist', 'nonlin', 'gain', 'offset', 'vary'
+        'name', 'nonlin', 'gain', 'offset', 'vary', 'scale'
     )
     name: str
-    # prior distribution of the neuron
-    prior_dist: dist.Normal = dist.Normal(0, 1)
     # intrinsic nonlinearity
     nonlin: Optional(Callable) = None
     # the gain prior if nonlinearity is given - this specifies the prior
@@ -71,36 +71,42 @@ class Neuron(_NonlinMixin):
     offset: Optional(dist.Normal) = dist.Normal(0, 1)
     # if a latent variable or not
     vary: bool = True
+    # scale
+    scale: float = 1.0  # TODO heteroscedasticity? - affect prior_dist
 
-    def sample(self, mean, scale=1):
-        # TODO dealing with scale
+    def sample(self, mean):
         # applies nonlinearity (if present)
         mean = self(mean)
+
+        # if vary sample from normal otherwise just return mean
         if self.vary:
-            return pyro.sample(
-                self.name, dist.Normal(mean, scale)
-            )
+            return pyro.sample(self.name, dist.Normal(mean, self.scale))
+
         else:
             return mean
 
-    def _mean(self, data=None):
+    def _mean(self, sample_size, data=None):
         """
         Parameters
         ----------
         data : NeuronData instance
         """
-        # TODO shape of tensors returned
         # current mean value
         if self.vary:
-            # TODO what if param doesn't exist yet?
-            # -> implement some init param method?
-            return pyro.param(self.name)
-        # if no data exist and data is None
-        # (this could lead to error downstream)
-        elif data is None:
-            return self.prior_dist.mean
+            try:
+                # if param exists already
+                return pyro.param(self.name)
+            except KeyError:
+                # if param doesn't exist try other options
+                pass
+
+        if data is None:
+            # no data use uninformative prior
+            return dist.Normal(0, self.scale).sample((sample_size,))
         else:
-            return data.mean
+            # draw from data mean and scale
+            # if data scale is zero this is deterministic
+            return dist.Normal(data.mean, data.scale).sample()
 
 
 @dataclass
@@ -129,13 +135,13 @@ class Synapse:
         Sample the sign for the synapse
         """
         if isinstance(self.sign, dist.Bernoulli):
-            sign = pyro.sample(
-                f"{SIGN_PREFIX}{self.name}", self.sign
-            )
+            sign = pyro.sample(f"{SIGN_PREFIX}{self.name}", self.sign)
+
             if sign:
                 return 1.0
             else:
                 return -1.0
+
         else:
             return sign
 
@@ -144,11 +150,11 @@ class Synapse:
         Sample the (signed) weight
         """
         s = self.sample_sign()
+
         if self.vary:
-            w = pyro.sample(
-                self.name, self.prior_dist
-            )
+            w = pyro.sample(self.name, self.prior_dist)
             return s * w
+
         else:
             return s * self.prior_dist.mean
 
@@ -162,21 +168,31 @@ class NeuronData(_NonlinMixin):
     def __post_init__(self):
         self.mask = ~torch.isnan(self.data)
         # is this the correct type for mathematical operations
-        self.mask_float = self.mask.type(torch.float32)
+        self.mask_float = self.mask.type(FLOAT_TYPE)
         # create nanless data
         data = self.data.clone()
         data[~self.mask] = 0
         self.nanless = data
-        n = torch.sum(self.mask_float, axis=1)[:, None]
-        self.mean = torch.sum(self.nanless, axis=1)[:, None] / n
+        n = torch.sum(self.mask_float, axis=1)
+        # mean
+        self.mean = torch.sum(self.nanless, axis=1) / n
+        # unbiased variance
         # nanvar
-        var = torch.sum(
-            ((self.nanless - self.mean) ** 2) * self.mask_float,
-            axis=1
-        )[:, None] / n
-        self.scale = var
+        if self.scale is None:
+            # default variance of 1 if not enough samples - TODO change?
+            var = torch.ones(n.shape, dtype=FLOAT_TYPE)
+            var[n > 1] = torch.sum(
+                ((self.nanless - self.mean) ** 2) * self.mask_float,
+                axis=1
+            )[n > 1] / (n - 1.0)[n > 1]
+            self.scale = torch.sqrt(var)
+        else:
+            assert self.scale.shape == n.shape
 
-    __slots__ = ('neuron_name', 'data', 'nonlin', 'gain', 'offset')
+    __slots__ = (
+        'neuron_name', 'data', 'nonlin', 'gain', 'offset', 'scale',
+        'mean', 'mask', 'mask_float', 'nanless'
+    )
     # name of parameter
     neuron_name: str
     # data tensor
@@ -187,6 +203,8 @@ class NeuronData(_NonlinMixin):
     gain: Optional(dist.Distribution) = None
     # offset to fit if nonlinearity is given - this specifies the prior
     offset: Optional(dist.Distribution) = dist.Normal(0, 1)
+    # population standard deviation (same length as data)
+    scale: Optional(torch.tensor) = None
 
     @property
     def name(self):
@@ -206,8 +224,9 @@ class NeuronData(_NonlinMixin):
         # TODO is this how to apply the mask for observations?
         with pyro.poutine.mask(mask=self.mask):
             s = pyro.sample(
-                self.name, dist.Normal(mean, self.scale), obs=data
+                self.name, dist.Normal(mean, self.scale[:, None]), obs=data
             )
+
         return s
 
 
@@ -244,6 +263,8 @@ class CircuitModel:
         # for the data dictionary the name should have the same names as
         # the ones that exist in neurons (see add_data)
 
+        self._sample_size = None
+
     @property
     def circuit(self):
         return self._circuit
@@ -260,9 +281,13 @@ class CircuitModel:
     def data(self):
         return self._data
 
+    @property
+    def sample_size(self):
+        return self._sample_size
+
     def add_neuron(
-        name, prior_dist=None, nonlin=None, gain=None,
-        offset=None, vary=None
+        name, nonlin=None, gain=None,
+        offset=None, vary=None, scale=None
     ):
         """
         Adds node to nx.DiGraph (if not exists) and creates Neuron instance
@@ -277,10 +302,12 @@ class CircuitModel:
         """
 
     def add_data(
-        neuron_name, data, nonlin=None, gain=None, offset=None
+        neuron_name, data, nonlin=None, gain=None, offset=None, scale=None
     ):
         """
         Add data to circuit model and create NeuronData instance.
+
+        Also sets sample size, if it is the first data entered.
 
         All data within one circuit have to have the same length
         (i.e. same set of stimuli used.)
@@ -305,30 +332,40 @@ class CircuitModel:
         for name, neuron in self.neurons.items():
             inputs = self.inputs(name)
 
-            if not inputs:
-                # TODO
-                continue
+            if inputs:
+                # if neuron has inputs
+                for idx, input in enumerate(inputs):
+                    w_ij = self.synapses[(name, input)].sample()
+                    x_j = self.neurons[input]._mean(
+                        self.sample_size,
+                        data=self.data.get(input, None)
+                    )
 
-            for idx, input in enumerate(inputs):
-                w_ij = self.synapses[(neuron, input)].sample()
-                x_j = self.neurons[input]._mean(self.data.get(input, None))
+                    if idx == 0:
+                        x = x_j[:, None]
+                        w = w_ij[None]
+                    else:
+                        x = torch.cat([x, x_j[:, None]], axis=1)
+                        w = torch.cat([w, w_ij[None]], axis=0)
 
-                if idx == 0:
-                    x = x_j[:, None]
-                    w = w_ij[None]
-                else:
-                    x = torch.cat([x, x_j[:, None]], axis=1)
-                    w = torch.cat([w, w_ij[None]], axis=0)
+                # normalize w
+                # TODO specify L1 or L2 normalization
+                w = w / torch.sum(torch.abs(w))
+                # normalize x
+                # TODO specify L1 or F-norm
+                x = x / torch.norm(x)
+                # linear prediction
+                y_pred = x @ w
 
-            # normalize w
-            # TODO specify L1 or L2 normalization
-            w = w / torch.sum(torch.abs(w))
-            # normalize x
-            # TODO specify L1 or F-norm
-            x = x / torch.norm(x)
-            # linear prediction
-            y_pred = x @ w
-            y_pred = neuron.sample(y_pred, 1)  # TODO dealing with scaling
+            else:
+                # if neuron has no inputs
+                y_pred = neuron._mean(
+                    self.sample_size,
+                    data=self.data.get(name, None)
+                )
+
+            # sample from neuron
+            y_pred = neuron.sample(y_pred)
 
             data = self.data.get(neuron, None)
 
