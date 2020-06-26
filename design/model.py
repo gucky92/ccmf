@@ -4,8 +4,10 @@ Template for a possible redesign
 
 from typing import Union, Optional, Callable
 from dataclasses import dataclass  # requires Python 3.7 or above
+from numbers import Number
 
 import networkx as nx
+import numpy as np
 import torch
 import pyro
 from pyro.distributions import dist
@@ -64,15 +66,16 @@ class Neuron(_NonlinMixin):
     )
     name: str
     # intrinsic nonlinearity
-    nonlin: Optional(Callable) = None
+    nonlin: Optional[Callable] = None
     # the gain prior if nonlinearity is given - this specifies the prior
-    gain: Optional(dist.LogNormal) = dist.LogNormal(0, 1)
+    gain: Optional[dist.LogNormal] = dist.LogNormal(0, 1)
     # offset to fit if nonlinearity is given - this specifies the prior
-    offset: Optional(dist.Normal) = dist.Normal(0, 1)
+    offset: Optional[dist.Normal] = dist.Normal(0, 1)
     # if a latent variable or not
     vary: bool = True
     # scale
-    scale: float = 1.0  # TODO heteroscedasticity? - affect prior_dist
+    scale: float = 1.0
+    # TODO heteroscedasticity? - effect on prior_dist in _mean
 
     def sample(self, mean):
         # applies nonlinearity (if present)
@@ -85,7 +88,7 @@ class Neuron(_NonlinMixin):
         else:
             return mean
 
-    def _mean(self, sample_size, data=None):
+    def _mean(self, sample_size, neuron_data=None):
         """
         Parameters
         ----------
@@ -100,13 +103,13 @@ class Neuron(_NonlinMixin):
                 # if param doesn't exist try other options
                 pass
 
-        if data is None:
+        if neuron_data is None:
             # no data use uninformative prior
             return dist.Normal(0, self.scale).sample((sample_size,))
         else:
             # draw from data mean and scale
             # if data scale is zero this is deterministic
-            return dist.Normal(data.mean, data.scale).sample()
+            return dist.Normal(neuron_data.mean, neuron_data.scale).sample()
 
 
 @dataclass
@@ -166,6 +169,9 @@ class NeuronData(_NonlinMixin):
     """
 
     def __post_init__(self):
+        if isinstance(self.data, np.ndarray):
+            self.data = torch.tensor(self.data, dtype=FLOAT_TYPE)
+
         self.mask = ~torch.isnan(self.data)
         # is this the correct type for mathematical operations
         self.mask_float = self.mask.type(FLOAT_TYPE)
@@ -187,6 +193,10 @@ class NeuronData(_NonlinMixin):
             )[n > 1] / (n - 1.0)[n > 1]
             self.scale = torch.sqrt(var)
         else:
+            if isinstance(self.scale, Number):
+                self.scale = torch.ones(n.shape, dtype=FLOAT_TYPE) * self.scale
+            elif isinstance(self.scale, np.ndarray):
+                self.scale = torch.tensor(self.scale, dtype=FLOAT_TYPE)
             assert self.scale.shape == n.shape
 
     __slots__ = (
@@ -196,15 +206,15 @@ class NeuronData(_NonlinMixin):
     # name of parameter
     neuron_name: str
     # data tensor
-    data: torch.tensor
+    data: Union[torch.tensor, np.ndarray]
     # extrinsic nonlinearity
-    nonlin: Optional(Callable) = None
+    nonlin: Optional[Callable] = None
     # the gain prior if nonlinearity is given - this specifies the prior
-    gain: Optional(dist.Distribution) = None
+    gain: Optional[dist.Distribution] = None
     # offset to fit if nonlinearity is given - this specifies the prior
-    offset: Optional(dist.Distribution) = dist.Normal(0, 1)
+    offset: Optional[dist.Distribution] = dist.Normal(0, 1)
     # population standard deviation (same length as data)
-    scale: Optional(torch.tensor) = None
+    scale: Optional[Union[torch.tensor, np.ndarray, float]] = None
 
     @property
     def name(self):
@@ -224,7 +234,8 @@ class NeuronData(_NonlinMixin):
         # TODO is this how to apply the mask for observations?
         with pyro.poutine.mask(mask=self.mask):
             s = pyro.sample(
-                self.name, dist.Normal(mean, self.scale[:, None]), obs=data
+                self.name, dist.Normal(mean, self.scale[:, None]),
+                obs=self.data
             )
 
         return s
@@ -237,32 +248,20 @@ class CircuitModel:
     Parameters
     ----------
     circuit : networkx.DiGraph
-    circuit_kwargs : dict
-        Used to create Neurona and Synapse classes already in `circuit`.
     """
 
-    def __init__(
-        self,
-        circuit: Optional(nx.DiGraph) = None,
-        **circuit_kwargs  # TODO
-    ):
+    def __init__(self, circuit: Optional(nx.DiGraph) = None):
         if circuit is None:
             self._circuit = nx.DiGraph()
         else:
             assert isinstance(circuit, nx.DiGraph)
             self._circuit = circuit
 
-        self._neurons = {}
-        # name : Neuron instance dictionary
+        # Neuron instances are stored in the `neuron` key of the circuit node
+        # Synapse instances are stored in the `synapse` key of edge attributes
+        # Data instances are stored in the `data` key of the circuit node
 
-        self._synapses = {}
-        # (postsynaptic, presynaptic) : Synapse instance dictionary
-        # synapse dictionary should have a two-tuple as a key
-
-        self._data = {}  # name : Data instance dictionary
-        # for the data dictionary the name should have the same names as
-        # the ones that exist in neurons (see add_data)
-
+        # sample size ones data has been added
         self._sample_size = None
 
     @property
@@ -271,39 +270,60 @@ class CircuitModel:
 
     @property
     def neurons(self):
-        return self._neurons
+        return {
+            key: value.get('neuron', Neuron(key))
+            for key, value in self.circuit.nodes.items()
+        }
 
     @property
     def synapses(self):
-        return self._synapses
+        return {
+            key: value.get('synapse', Synapse(key))
+            for key, value in self.circuit.edges.items()
+        }
 
     @property
     def data(self):
-        return self._data
+        return {
+            key: value.get('neuron_data', None)
+            for key, value in self.circuit.nodes.items()
+        }
 
     @property
     def sample_size(self):
+        if self._sample_size is None:
+            # TODO messaging if size error
+            for node_name, neuron_data in self.data.items():
+                if neuron_data is not None:
+                    self._sample_size = neuron_data.data.shape[0]
+                    break
         return self._sample_size
 
-    def add_neuron(
-        name, nonlin=None, gain=None,
-        offset=None, vary=None, scale=None
-    ):
+    def add_neuron(self, name, **neuron_kwargs):
         """
         Adds node to nx.DiGraph (if not exists) and creates Neuron instance
         """
+        neuron = Neuron(name, **neuron_kwargs)
+        self.circuit.add_node(name, neuron=neuron)
+        return self
 
-    def add_synapse(
-        postsynaptic, presynaptic, prior_dist=None,
-        sign=None, vary=None
-    ):
+    def add_synapse(self, postsynaptic, presynaptic, **synapse_kwargs):
         """
         Adds edge to nx.DiGraph (if not exists) and creates Synapse instance
         """
+        assert postsynaptic in self.circuit.nodes, (
+            f"Postsynaptic neuron `{postsynaptic}` not in circuit. "
+            "Specify neuron first with `add_neuron`."
+        )
+        assert presynaptic in self.circuit.nodes, (
+            f"Presynaptic neuron `{presynaptic}` not in circuit. "
+            "Specify neuron first with `add_neuron`."
+        )
+        synapse = Synapse(postsynaptic, presynaptic, **synapse_kwargs)
+        self.circuit.add_edge(presynaptic, postsynaptic, synapse=synapse)
+        return self
 
-    def add_data(
-        neuron_name, data, nonlin=None, gain=None, offset=None, scale=None
-    ):
+    def add_data(self, neuron_name, data, **data_kwargs):
         """
         Add data to circuit model and create NeuronData instance.
 
@@ -312,33 +332,46 @@ class CircuitModel:
         All data within one circuit have to have the same length
         (i.e. same set of stimuli used.)
         """
+        assert neuron_name in self.circuit.nodes, (
+            f"Neuron `{neuron_name}` not in circuit. "
+            "Specify neuron first with `add_neuron`."
+        )
+        neuron_data = NeuronData(neuron_name, data, **data_kwargs)
+        self.circuit.nodes[neuron_name].update({'neuron_data': neuron_data})
 
     def _init_pyro_param_store(self):
         """
+        TODO - maybe not necessary?
+
         probably a private method that needs to be implemented to use with
         AutoGuide.
         """
 
     def inputs(self, neuron):
-        """Return list of inputs to a neuron
         """
-
-        return list(self.circuit[neuron])
+        Return list of inputs to a neuron
+        """
+        return [pre for pre, post in self.circuit.in_edges(neuron)]
 
     def conditioned_model(self):
         """Model for pyro
         """
 
-        for name, neuron in self.neurons.items():
+        neurons = self.neurons
+        synapses = self.synapses
+        data = self.data
+
+        for name, neuron in neurons.items():
             inputs = self.inputs(name)
+            neuron_data = data[name]
 
             if inputs:
                 # if neuron has inputs
                 for idx, input in enumerate(inputs):
-                    w_ij = self.synapses[(name, input)].sample()
-                    x_j = self.neurons[input]._mean(
+                    w_ij = synapses[(input, name)].sample()
+                    x_j = neurons[input]._mean(
                         self.sample_size,
-                        data=self.data.get(input, None)
+                        neuron_data=data[input]
                     )
 
                     if idx == 0:
@@ -358,16 +391,15 @@ class CircuitModel:
                 y_pred = x @ w
 
             else:
-                # if neuron has no inputs
+                # if neuron has no inputs just use the mean as the prediction
                 y_pred = neuron._mean(
                     self.sample_size,
-                    data=self.data.get(name, None)
+                    neuron_data=neuron_data
                 )
 
             # sample from neuron
             y_pred = neuron.sample(y_pred)
 
-            data = self.data.get(neuron, None)
-
-            if data is not None:
-                data.sample(y_pred)
+            # conditional sample
+            if neuron_data is not None:
+                neuron_data.sample(y_pred)
