@@ -17,7 +17,6 @@ GAIN_PREFIX = "gain_"
 OFFSET_PREFIX = "offset_"
 DATA_PREFIX = "data_"
 SIGN_PREFIX = "sign_"
-# TODO what is the correct float type?
 FLOAT_TYPE = torch.float32
 
 
@@ -111,10 +110,10 @@ class Synapse:
     """
     Synapse class that holds the following attributes
     """
-    # name of postsynaptic neuron
-    postsynaptic: str
     # name of presynaptic neuron
     presynaptic: str
+    # name of postsynaptic neuron
+    postsynaptic: str
     # prior distribution
     prior_dist: dist.LogNormal = dist.LogNormal(0, 1)
     # sign of synapse (defaults to bernoulli)
@@ -124,7 +123,7 @@ class Synapse:
 
     @property
     def name(self):
-        return f"{self.postsynaptic}_{self.presynaptic}"
+        return f"{self.presynaptic}->{self.postsynaptic}"
 
     def sample_sign(self):
         """
@@ -262,6 +261,9 @@ class CircuitModel:
 
     @property
     def neurons(self):
+        """
+        Dictionary with neuron instances for each neuron
+        """
         return {
             key: value.get('neuron', Neuron(key))
             for key, value in self.circuit.nodes.items()
@@ -269,8 +271,11 @@ class CircuitModel:
 
     @property
     def synapses(self):
+        """
+        Dictionary
+        """
         return {
-            key: value.get('synapse', Synapse(key[1], key[0]))
+            key: value.get('synapse', Synapse(key[0], key[1]))
             for key, value in self.circuit.edges.items()
         }
 
@@ -299,19 +304,19 @@ class CircuitModel:
         self.circuit.add_node(name, neuron=neuron)
         return self
 
-    def add_synapse(self, postsynaptic, presynaptic, **synapse_kwargs):
+    def add_synapse(self, presynaptic, postsynaptic, **synapse_kwargs):
         """
         Adds edge to nx.DiGraph (if not exists) and creates Synapse instance
         """
         assert postsynaptic in self.circuit.nodes, (
             f"Postsynaptic neuron `{postsynaptic}` not in circuit. "
-            "Specify neuron first with `add_neuron`."
+            "Specify neuron first with `add_neuron` method."
         )
         assert presynaptic in self.circuit.nodes, (
             f"Presynaptic neuron `{presynaptic}` not in circuit. "
-            "Specify neuron first with `add_neuron`."
+            "Specify neuron first with `add_neuron` method."
         )
-        synapse = Synapse(postsynaptic, presynaptic, **synapse_kwargs)
+        synapse = Synapse(presynaptic, postsynaptic, **synapse_kwargs)
         self.circuit.add_edge(presynaptic, postsynaptic, synapse=synapse)
         return self
 
@@ -326,7 +331,7 @@ class CircuitModel:
         """
         assert neuron_name in self.circuit.nodes, (
             f"Neuron `{neuron_name}` not in circuit. "
-            "Specify neuron first with `add_neuron`."
+            "Specify neuron first with `add_neuron` method."
         )
         if self.sample_size is None:
             self._sample_size = data.shape[0]
@@ -337,14 +342,7 @@ class CircuitModel:
             )
         neuron_data = NeuronData(neuron_name, data, **data_kwargs)
         self.circuit.nodes[neuron_name].update({'neuron_data': neuron_data})
-
-    def _init_pyro_param_store(self):
-        """
-        TODO - maybe not necessary?
-
-        probably a private method that needs to be implemented to use with
-        AutoGuide.
-        """
+        return self
 
     def inputs(self, neuron):
         """
@@ -384,7 +382,9 @@ class CircuitModel:
             if inputs:
                 # if neuron has inputs
                 for idx, input in enumerate(inputs):
+                    # keeps pre, post order as for networkx
                     w_ij = synapses[(input, name)].sample()
+                    # get latest latent value for input
                     x_j = self._latent_X[input]
 
                     if idx == 0:
